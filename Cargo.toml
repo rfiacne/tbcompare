@@ -1,0 +1,27 @@
+[package]
+name = "tbcompare"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["std", "derive"] }
+encoding_rs = { version = "0.8", default-features = false }
+encoding_rs_io = { version = "0.1", default-features = false }
+log = { version = "0.4", default-features = false }
+env_logger = { version = "0.10", default-features = false, features = ["auto-color"] }
+chardetng = { version = "0.1", default-features = false }
+indicatif = { version = "0.17", default-features = false }
+rayon = { version = "1.7", default-features = false }
+anyhow = { version = "1.0", default-features = false }
+tempfile = { version = "3.0", default-features = false }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[dev-dependencies]
+tempfile = "3.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = "s"
