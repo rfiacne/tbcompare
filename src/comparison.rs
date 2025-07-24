@@ -133,14 +133,14 @@ pub fn compare_files<P: AsRef<Path>>(file1_path: P, file2_path: P) -> Result<Opt
 /// Generates file name pairs based on the actual files in the directories
 /// Files are matched based on the pattern SC_aaaaaaaa_yyyymmdd_tttN_AXX_Z where
 /// aaaaaaaa, yyyymmdd, and AXX must be the same, but tttN (version) may differ.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `dir1_path` - Path to the first directory
 /// * `dir2_path` - Path to the second directory
-/// 
+///
 /// # Returns
-/// 
+///
 /// A vector of tuples containing file path pairs
 pub fn generate_file_pairs<P: AsRef<Path>>(dir1_path: P, dir2_path: P) -> Result<Vec<(PathBuf, PathBuf)>> {
     let dir1_path = dir1_path.as_ref();
@@ -163,10 +163,28 @@ pub fn generate_file_pairs<P: AsRef<Path>>(dir1_path: P, dir2_path: P) -> Result
     
     let mut file_pairs = Vec::new();
     
-    // For each file in dir1, find the corresponding file in dir2 using the custom matching rule
+    // Create a hash map for files in dir2 for O(1) lookup
+    let mut dir2_map = std::collections::HashMap::new();
+    
+    // Populate the hash map with files from dir2
+    for file2_path in &files2 {
+        if let Some(file2_stem) = file2_path.file_stem().and_then(|n| n.to_str()) {
+            let parts2: Vec<&str> = file2_stem.split('_').collect();
+            
+            // Check if the file name matches the expected pattern
+            if parts2.len() >= 6 && parts2[0] == "SC" && parts2[parts2.len()-1] == "Z" {
+                // Extract the parts that must match: aaaaaaaa, yyyymmdd, AXX
+                let key2 = format!("{}_{}_{}", parts2[1], parts2[2], parts2[parts2.len()-2]);
+                
+                // Store the file path in the hash map
+                dir2_map.insert(key2, file2_path.clone());
+            }
+        }
+    }
+    
+    // For each file in dir1, find the corresponding file in dir2 using the hash map
     for file1_path in &files1 {
         if let Some(file1_stem) = file1_path.file_stem().and_then(|n| n.to_str()) {
-            // Parse the file name according to the pattern SC_aaaaaaaa_yyyymmdd_tttN_AXX_Z
             let parts1: Vec<&str> = file1_stem.split('_').collect();
             
             // Check if the file name matches the expected pattern
@@ -174,28 +192,15 @@ pub fn generate_file_pairs<P: AsRef<Path>>(dir1_path: P, dir2_path: P) -> Result
                 // Extract the parts that must match: aaaaaaaa, yyyymmdd, AXX
                 let key1 = format!("{}_{}_{}", parts1[1], parts1[2], parts1[parts1.len()-2]);
                 
-                // Find matching file in dir2
-                for file2_path in &files2 {
-                    if let Some(file2_stem) = file2_path.file_stem().and_then(|n| n.to_str()) {
-                        let parts2: Vec<&str> = file2_stem.split('_').collect();
-                        
-                        // Check if the file name matches the expected pattern
-                        if parts2.len() >= 6 && parts2[0] == "SC" && parts2[parts2.len()-1] == "Z" {
-                            // Extract the parts that must match: aaaaaaaa, yyyymmdd, AXX
-                            let key2 = format!("{}_{}_{}", parts2[1], parts2[2], parts2[parts2.len()-2]);
-                            
-                            // If keys match, we found a pair
-                            if key1 == key2 {
-                                file_pairs.push((file1_path.clone(), file2_path.clone()));
-                                break; // No need to check other files in dir2 for this file1
-                            }
-                        }
-                    }
+                // Look up the matching file in dir2 using the hash map
+                if let Some(file2_path) = dir2_map.get(&key1) {
+                    file_pairs.push((file1_path.clone(), file2_path.clone()));
                 }
             }
         }
     }
     
+    info!("生成了 {} 个文件对", file_pairs.len());
     Ok(file_pairs)
 }
 

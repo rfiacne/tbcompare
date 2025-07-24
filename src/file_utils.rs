@@ -106,10 +106,10 @@ pub fn read_and_process_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<String>
     Ok(lines)
 }
 
-/// Sorts lines using Rust's built-in sort algorithm
-/// This is more reliable across platforms than external sorting
+/// Sorts lines using Rust's unstable sort algorithm
+/// This is faster than stable sort and more reliable across platforms than external sorting
 fn internal_sort(lines: &mut Vec<String>) -> Result<()> {
-    lines.sort();
+    lines.sort_unstable();
     Ok(())
 }
 
