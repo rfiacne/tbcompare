@@ -75,9 +75,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Generate report
     let mut report_content = String::new();
-    let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let timestamp_display = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let timestamp_filename = Local::now().format("%Y%m%d_%H%M%S").to_string();
     
-    report_content.push_str(&format!("文件比较报告 - 生成时间: {}\n", timestamp));
+    // Add header with decorative lines
+    report_content.push_str(&format!("{}\n", "=".repeat(80)));
+    report_content.push_str(&format!("{:^80}\n", "文件比较报告"));
+    report_content.push_str(&format!("{:^80}\n", format!("生成时间: {}", timestamp_display)));
+    report_content.push_str(&format!("{}\n\n", "=".repeat(80)));
+    
+    // Add comparison info section
+    report_content.push_str(&format!("{}\n", "-".repeat(50)));
+    report_content.push_str("比较信息\n");
+    report_content.push_str(&format!("{}\n", "-".repeat(50)));
     report_content.push_str(&format!("比较目录: {:?} 和 {:?}\n", args.dir1, args.dir2));
     report_content.push_str(&format!("文件对数量: {}\n\n", file_pairs_count));
     
@@ -102,39 +112,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match result {
             Ok(Some(diff)) => {
                 diff_count += 1;
-                report_content.push_str(&format!("发现差异: {} 和 {}\n", 
-                                                short_path1.display(), short_path2.display()));
+                // Add section header for differences
+                report_content.push_str(&format!("{}\n", "-".repeat(50)));
+                report_content.push_str(&format!("发现差异的文件对 #{}\n", diff_count));
+                report_content.push_str(&format!("{}\n", "-".repeat(50)));
+                report_content.push_str(&format!("文件 1: {}\n", short_path1.display()));
+                report_content.push_str(&format!("文件 2: {}\n\n", short_path2.display()));
+                
                 if !diff.only_in_first.is_empty() {
-                    report_content.push_str(&format!("仅在 {} 中的行:\n", short_path1.display()));
+                    report_content.push_str(&format!("  ► 仅在 {} 中存在的行:\n", short_path1.display()));
                     for line in &diff.only_in_first {
-                        report_content.push_str(&format!("  {}\n", line));
+                        report_content.push_str(&format!("    • {}\n", line));
                     }
+                    report_content.push_str("\n");
                 }
                 if !diff.only_in_second.is_empty() {
-                    report_content.push_str(&format!("仅在 {} 中的行:\n", short_path2.display()));
+                    report_content.push_str(&format!("  ► 仅在 {} 中存在的行:\n", short_path2.display()));
                     for line in &diff.only_in_second {
-                        report_content.push_str(&format!("  {}\n", line));
+                        report_content.push_str(&format!("    • {}\n", line));
                     }
+                    report_content.push_str("\n");
                 }
-                report_content.push_str("\n");
             }
             Ok(None) => {
                 // No differences - don't add to report to keep it concise
             }
             Err(e) => {
                 error_count += 1;
-                error!("比较 {} 和 {} 时出错: {}", 
+                error!("比较 {} 和 {} 时出错: {}",
                        file1_path.display(), file2_path.display(), e);
-                report_content.push_str(&format!("比较错误: {} 和 {}\n错误信息: {}\n\n", 
-                                                short_path1.display(), short_path2.display(), e));
+                // Add error section
+                report_content.push_str(&format!("{}\n", "-".repeat(50)));
+                report_content.push_str("比较错误\n");
+                report_content.push_str(&format!("{}\n", "-".repeat(50)));
+                report_content.push_str(&format!("文件 1: {}\n", short_path1.display()));
+                report_content.push_str(&format!("文件 2: {}\n", short_path2.display()));
+                report_content.push_str(&format!("错误信息: {}\n\n", e));
             }
         }
     }
     
-    report_content.push_str(&format!("总结:\n"));
-    report_content.push_str(&format!("  - 发现差异的文件对: {}\n", diff_count));
-    report_content.push_str(&format!("  - 比较出错的文件对: {}\n", error_count));
-    report_content.push_str(&format!("  - 完全相同的文件对: {}\n", file_pairs_count - diff_count - error_count));
+    // Add summary section
+    report_content.push_str(&format!("{}\n", "=".repeat(80)));
+    report_content.push_str("统计摘要\n");
+    report_content.push_str(&format!("{}\n", "=".repeat(80)));
+    report_content.push_str(&format!("  • 发现差异的文件对: {}\n", diff_count));
+    report_content.push_str(&format!("  • 比较出错的文件对: {}\n", error_count));
+    report_content.push_str(&format!("  • 完全相同的文件对: {}\n", file_pairs_count - diff_count - error_count));
+    report_content.push_str(&format!("{}\n", "=".repeat(80)));
     
     // Output to console
     println!("\n比较完成！");
@@ -148,7 +173,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Add timestamp to filename if no extension is provided
             let stem = output_path.file_stem().unwrap_or_default().to_string_lossy();
             let parent = output_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-            parent.join(format!("{}_{}.txt", stem, timestamp))
+            parent.join(format!("{}_{}.txt", stem, timestamp_filename))
         } else {
             output_path.clone()
         };
@@ -161,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("详细报告已保存到: {:?}", report_path);
     } else {
         // Default report name with timestamp
-        let report_filename = format!("comparison_report_{}.txt", timestamp);
+        let report_filename = format!("comparison_report_{}.txt", timestamp_filename);
         let mut file = File::create(&report_filename)
             .with_context(|| format!("无法创建报告文件: {}", report_filename))?;
         file.write_all(report_content.as_bytes())
